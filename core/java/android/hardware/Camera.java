@@ -21,6 +21,7 @@ import android.annotation.SdkConstant;
 import android.annotation.SdkConstant.SdkConstantType;
 import android.content.Context;
 import android.hardware.ITorchService;
+import android.hardware.Flash;
 import android.graphics.ImageFormat;
 import android.graphics.Point;
 import android.graphics.Rect;
@@ -159,6 +160,7 @@ public class Camera {
     /* ### QC ADD-ONS: END */
 
     private int mCameraId;
+    protected Flash flashDev;
     private int mNativeContext; // accessed by native methods
     private EventHandler mEventHandler;
     private ShutterCallback mShutterCallback;
@@ -352,6 +354,7 @@ public class Camera {
     }
 
     Camera(int cameraId) {
+		flashDev = new Flash();
         mCameraId = cameraId;
         mShutterCallback = null;
         mRawImageCallback = null;
@@ -1309,7 +1312,9 @@ public class Camera {
             msgType |= CAMERA_MSG_COMPRESSED_IMAGE;
         }
 
+		flashDev.setShot();
         native_takePicture(msgType);
+        flashDev.switchOff();
         mFaceDetectionRunning = false;
     }
 
@@ -3374,6 +3379,7 @@ public class Camera {
         public void setFlashMode(String value) {
 	    if(getSupportedFlashModes() == null) return;
             set(KEY_FLASH_MODE, value);
+            flashDev.setFlashMode(value);
         }
 
         /**

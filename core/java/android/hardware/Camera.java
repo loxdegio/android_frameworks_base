@@ -160,7 +160,7 @@ public class Camera {
     /* ### QC ADD-ONS: END */
 
     private int mCameraId;
-    protected Flash flashDev;
+    protected Flash mFlashDevice;
     private int mNativeContext; // accessed by native methods
     private EventHandler mEventHandler;
     private ShutterCallback mShutterCallback;
@@ -354,8 +354,8 @@ public class Camera {
     }
 
     Camera(int cameraId) {
-		flashDev = new Flash();
         mCameraId = cameraId;
+        mFlashDevice = new Flash(mCameraId);
         mShutterCallback = null;
         mRawImageCallback = null;
         mJpegCallback = null;
@@ -1142,6 +1142,7 @@ public class Camera {
         synchronized (mAutoFocusCallbackLock) {
             mAutoFocusCallback = cb;
         }
+        if(mFlashDevice.isNeeded()) mFlashDevice.on();
         native_autoFocus();
     }
     private native final void native_autoFocus();
@@ -1160,6 +1161,7 @@ public class Camera {
             mAutoFocusCallback = null;
         }
         native_cancelAutoFocus();
+        if(mFlashDevice.isON()) mFlashDevice.off();
         // CAMERA_MSG_FOCUS should be removed here because the following
         // scenario can happen:
         // - An application uses the same thread for autoFocus, cancelAutoFocus
@@ -1311,10 +1313,10 @@ public class Camera {
         if (mJpegCallback != null) {
             msgType |= CAMERA_MSG_COMPRESSED_IMAGE;
         }
-
-		flashDev.setShot();
+		
+		if(mFlashDevice.isNeeded())	mFlashDevice.on();
         native_takePicture(msgType);
-        flashDev.switchOff();
+        if(mFlashDevice.isOn()) mFlashDevice.off();
         mFaceDetectionRunning = false;
     }
 

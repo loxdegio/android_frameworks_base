@@ -19,23 +19,21 @@
 package android.hardware;
 
 import android.hardware.Camera;
+import java.io.FileReader;
+import java.io.BufferedReader;
 import java.io.FileWriter;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import android.util.Log;
 
 public class Flash {
 
     private static final String MSG_TAG = "TorchDevice";
-
-    /* New variables, init'ed by resource items */
-    private static int mValueOff=0;
-    private static int mValueOn=1;
-    private static String mFlashDevice="/sys/devices/virtual/camera/rear/rear_flash";
-
+    
     private FileWriter mFlashDeviceWriter = null;
 
     private String mFlashMode = null;
-    private int mState;
-    private int mCameraId;
+    private int mState,mLuxIntensity;
 
     public static class InitializationException extends RuntimeException {
         public InitializationException(String message, Throwable cause) {
@@ -43,77 +41,101 @@ public class Flash {
         }
     }
     
-    protected Flash(int camId){
+    public Flash(){
 		try{
-			mFlashDeviceWriter = new FileWriter(mFlashDevice);
+			mFlashDeviceWriter = new FileWriter("/sys/class/camera/rear/rear_flash");
 		} catch (IOException e) {
-			throw new InitializationException("Can't open flash device", e);
+			Log.e(MSG_TAG,"Can't open flash sysfs device");
 		}
-		mState = mValueOff;
-		mCameraId=camId;
+		mState = 0; mLuxIntensity=100;
+		mFlashMode = Camera.Parameters.FLASH_MODE_AUTO;
 	}
 	
-	private boolean exposureCompensationHigh(){
-		boolean ret=false;
-		Camera camera=new Camera(mCameraId);
-		int compensationZero = (camera.getMaxExposureCompensation()+camera.getMinExposureCompensation())/2;
-		if(camera.getExposureCompensation()>=(compensationZero+(2*getExposureCompensationStep()))
-			ret = true;
-		camera.close();
-		return ret;
-	}
-    
-    protected boolean isNeeded(){
-		boolean ret=false;
-		
-		if (mFlashMode.equals(Camera.Parameters.FLASH_MODE_AUTO)) ret=true;
-		else if (mFlashMode.equals(Camera.Parameters.FLASH_MODE_AUTO) &&
-					exposureCompensationHigh())
-			ret=true;
-		else ret=false;
-		
-		return ret;
-	}
-	
-	protected void setFlashMode(String mode){ 
+	public void setFlashMode(String mode){ 
 		if (mFlashMode.equals(mode)) return;
-		Log.d(MSG_TAG, "setFlashMode " + mode);
 		mFlashMode = mode;
 	}
+	
+	public boolean isNeeded(boolean isFocus){
+		
+		if(mFlashMode.equals(Camera.Parameters.FLASH_MODE_OFF))
+			return false;
+		
+		if(isFocus){
+			
+			String lux_val = null;
+			
+			try {
+				BufferedReader luxReader = new BufferedReader(new FileReader("/sys/kernel/lux/ext_lux_val"));
+				lux_val = luxReader.readLine();
+				luxReader.close();
+			} catch (IOException ioE) {
+				Log.e(MSG_TAG,"Can't read ambient lux value");
+			}
+			
+			if(lux_val==null) return false;
+			
+			mLuxIntensity = Integer.parseInt(lux_val);
+		
+		}
+		
+		if(mFlashMode.equals(Camera.Parameters.FLASH_MODE_AUTO) && mLuxIntensity>=50)
+			return false;
+		
+		return true;
+	}
 
-    protected void on() {
-        try {
-			if(mState==mValueOn) return;            
-            mFlashDeviceWriter.write(String.valueOf(mValueOn));
-			mState=mValueOn;
+    public void on() {
+		try {            
+            mFlashDeviceWriter.write(Integer.toString(7));
+			mState=1;
+			mFlashDeviceWriter.flush();
+			Log.d(MSG_TAG,"Flash switched on");
 		} catch (IOException e) {
-			throw new InitializationException("Can't open flash device", e);
+			Log.e(MSG_TAG,"Can't write on flash sysfs device");
 		}
 	}
 	
-	protected void off(){
-		if(mState==mValueOn)
-			try{
-				if (mFlashDeviceWriter == null) {
-					mFlashDeviceWriter = new FileWriter(mFlashDevice);
-				}
-				mFlashDeviceWriter.write(String.valueOf(mValueOff));
-			} catch (IOException e) {
-				// ignore
+	public void off(){		
+		try{
+			mFlashDeviceWriter.write(Integer.toString(0));
+			mState=0;
+			mFlashDeviceWriter.flush();
+			Log.d(MSG_TAG,"Flash switched off");	
+		} catch (IOException e) {
+			Log.e(MSG_TAG,"Can't write on flash sysfs device");
+		}
+	}
+	
+	public synchronized void off(boolean isFocus){		
+		try{
+			if(isFocus) Thread.sleep(5000);
+			else { 
+				mLuxIntensity=100; 
+				Thread.sleep(1000);
 			}
+		} catch (InterruptedException ie){
+			Log.e(MSG_TAG,"Can't wait finish of tasks");
+		}
+		off();
 	}
 
-    protected String getFlashMode() {
+    public String getFlashMode() {
         return mFlashMode;
     }
     
-    protected boolean isON(){
-		return mState==mValueOn? true : false;
+    public boolean isOn(){
+		return (mState==1);
 	}
     
-    protected void close(){
-		try{
-			mFlashDeviceWriter.close();
+    public void close(){
+		if(mFlashDeviceWriter!=null){
+			try{
+				mFlashDeviceWriter.close();
+			} catch (IOException e) { 
+				Log.e(MSG_TAG,"Can't close flash sysfs device");
+			}
 		}
-	}
+	} 
+		
 }

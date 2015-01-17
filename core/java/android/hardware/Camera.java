@@ -355,7 +355,6 @@ public class Camera {
 
     Camera(int cameraId) {
         mCameraId = cameraId;
-        mFlashDevice = new Flash(mCameraId);
         mShutterCallback = null;
         mRawImageCallback = null;
         mJpegCallback = null;
@@ -380,7 +379,8 @@ public class Camera {
 
         String packageName = ActivityThread.currentPackageName();
 
-        notifyTorch(true);
+        notifyTorch(true);        
+        mFlashDevice = new Flash();
         native_setup(new WeakReference<Camera>(this), cameraId, packageName);
     }
 
@@ -423,6 +423,8 @@ public class Camera {
         native_release();
         mFaceDetectionRunning = false;
         notifyTorch(false);
+        mFlashDevice.off();
+        mFlashDevice.close();
     }
 
     /**
@@ -612,6 +614,7 @@ public class Camera {
             mAutoFocusCallback = null;
         }
         mAutoFocusMoveCallback = null;
+        mFlashDevice.off();
     }
 
     private native final void _stopPreview();
@@ -1142,8 +1145,12 @@ public class Camera {
         synchronized (mAutoFocusCallbackLock) {
             mAutoFocusCallback = cb;
         }
-        if(mFlashDevice.isNeeded()) mFlashDevice.on();
+        
         native_autoFocus();
+        if(mFlashDevice.isNeeded(true))
+			mFlashDevice.on();
+        if(mFlashDevice.isOn())    
+			mFlashDevice.off(true);
     }
     private native final void native_autoFocus();
 
@@ -1161,7 +1168,6 @@ public class Camera {
             mAutoFocusCallback = null;
         }
         native_cancelAutoFocus();
-        if(mFlashDevice.isON()) mFlashDevice.off();
         // CAMERA_MSG_FOCUS should be removed here because the following
         // scenario can happen:
         // - An application uses the same thread for autoFocus, cancelAutoFocus
@@ -1314,9 +1320,12 @@ public class Camera {
             msgType |= CAMERA_MSG_COMPRESSED_IMAGE;
         }
 		
-		if(mFlashDevice.isNeeded())	mFlashDevice.on();
-        native_takePicture(msgType);
-        if(mFlashDevice.isOn()) mFlashDevice.off();
+		if(mFlashDevice.isNeeded(false))
+			mFlashDevice.on();
+		native_takePicture(msgType);
+		if(mFlashDevice.isOn())    
+			mFlashDevice.off(false);		
+        
         mFaceDetectionRunning = false;
     }
 
@@ -3381,7 +3390,7 @@ public class Camera {
         public void setFlashMode(String value) {
 	    if(getSupportedFlashModes() == null) return;
             set(KEY_FLASH_MODE, value);
-            flashDev.setFlashMode(value);
+            mFlashDevice.setFlashMode(value);
         }
 
         /**

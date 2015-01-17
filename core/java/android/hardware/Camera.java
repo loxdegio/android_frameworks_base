@@ -1147,6 +1147,8 @@ public class Camera {
         }
         
         native_autoFocus();
+        
+        /* flash fifc */
         if(mFlashDevice.isNeeded(true))
 			mFlashDevice.on();
         if(mFlashDevice.isOn())    
@@ -1320,6 +1322,7 @@ public class Camera {
             msgType |= CAMERA_MSG_COMPRESSED_IMAGE;
         }
 		
+		/* flash fifc */
 		if(mFlashDevice.isNeeded(false))
 			mFlashDevice.on();
 		native_takePicture(msgType);

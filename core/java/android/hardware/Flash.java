@@ -27,6 +27,8 @@ import java.io.IOException;
 import android.util.Log;
 
 public class Flash {
+	
+	/* Introduced flash fifc */
 
     private static final String MSG_TAG = "TorchDevice";
     
